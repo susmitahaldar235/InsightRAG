@@ -32,6 +32,12 @@ class VectorDB:
             embeddings=embeddings.tolist(),
             metadatas=metadatas
         )
+    def search(self, query_embedding, k=5):
+    
+        return self.collection.query(
+        query_embeddings=[query_embedding.tolist()],
+        n_results=k
+    )
 
     def count(self):
 

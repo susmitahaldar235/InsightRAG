@@ -1,0 +1,42 @@
+[
+    {
+        "id": 1,
+        "question": "What is Retrieval-Augmented Generation?"
+    },
+    {
+        "id": 2,
+        "question": "Why are embeddings used in RAG?"
+    },
+    {
+        "id": 3,
+        "question": "What is a vector database?"
+    },
+    {
+        "id": 4,
+        "question": "How does semantic search work?"
+    },
+    {
+        "id": 5,
+        "question": "What are text chunks?"
+    },
+    {
+        "id": 6,
+        "question": "Why is chunk overlap important?"
+    },
+    {
+        "id": 7,
+        "question": "What embedding model is used?"
+    },
+    {
+        "id": 8,
+        "question": "Explain the document indexing process."
+    },
+    {
+        "id": 9,
+        "question": "How are relevant chunks retrieved?"
+    },
+    {
+        "id": 10,
+        "question": "What is the role of ChromaDB?"
+    }
+]

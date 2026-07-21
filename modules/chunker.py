@@ -2,7 +2,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class DocumentChunker:
-
     def __init__(self):
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
