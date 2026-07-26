@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "expected_answer": "Retrieval-Augmented Generation is a framework that combines document retrieval with a sequence generation model to produce more accurate and knowledge-grounded answers."
+  },
+  {
+    "id": 2,
+    "expected_answer": "The RAG architecture consists of a neural retriever that fetches relevant documents and a sequence generator that produces the final answer using the retrieved information."
+  },
+  {
+    "id": 3,
+    "expected_answer": "A dense vector index enables efficient semantic retrieval of documents that are relevant to the input query."
+  },
+  {
+    "id": 4,
+    "expected_answer": "The retriever searches the indexed knowledge base and returns the most relevant documents for the query."
+  },
+  {
+    "id": 5,
+    "expected_answer": "The generator produces the final response by conditioning on both the user query and the retrieved documents."
+  },
+  {
+    "id": 6,
+    "expected_answer": "RAG reduces hallucinations by grounding the generated response in retrieved external knowledge instead of relying only on the model's parameters."
+  },
+  {
+    "id": 7,
+    "expected_answer": "Parametric memory refers to knowledge stored in the model weights, while non-parametric memory refers to external documents retrieved at inference time."
+  },
+  {
+    "id": 8,
+    "expected_answer": "Retrieved documents provide factual context that guides the generator toward producing accurate and grounded answers."
+  },
+  {
+    "id": 9,
+    "expected_answer": "Knowledge-intensive tasks require access to large amounts of factual information, which RAG can retrieve dynamically from an external knowledge source."
+  },
+  {
+    "id": 10,
+    "expected_answer": "Compared with a standard language model, RAG can access up-to-date external knowledge, improve factual accuracy, and provide more grounded responses."
+  }
+]
