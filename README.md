@@ -98,8 +98,8 @@ InsightRAG has two main flows: **document indexing** and **question answering**.
                                                    Gemini 2.5 Flash
                                                            │
                                                            ▼
-                                                   Answer + Sources
-Document Indexing Flow
+                                                   Answer + Sources ```
+## Document Indexing Flow
 
 When a PDF is uploaded, InsightRAG prepares the document for efficient future retrieval.
 
@@ -238,7 +238,7 @@ A key component of InsightRAG is its corrective retrieval workflow.
 
 Instead of immediately generating an answer after the first retrieval, the system checks whether the retrieved context is sufficient.
 
-Retrieve
+```text Retrieve
    ↓
 Grade
    ↓
@@ -252,7 +252,7 @@ Is the retrieved context sufficient?
         ↓
   Hybrid Retrieval Again
         ↓
-     Generate
+     Generate ```
 
 The current implementation performs one bounded correction.
 
