@@ -1,43 +1,28 @@
-# InsightRAG
+# InsightRAG — Corrective Hybrid RAG System
 
-> A self-correcting Retrieval-Augmented Generation (RAG) system for question answering over PDF documents.
+InsightRAG is a **Retrieval-Augmented Generation (RAG)** system for question answering over PDF documents.
 
-InsightRAG is a PDF-based question-answering system that combines **semantic retrieval, keyword-based retrieval, reranking, and corrective retrieval** to improve the relevance of retrieved context before generating an answer. The system uses **PyMuPDF** for PDF text extraction, **LangChain RecursiveCharacterTextSplitter** for chunking, **BAAI/bge-small-en-v1.5** for embeddings, **ChromaDB** for persistent vector storage, **BM25** for lexical retrieval, **BAAI/bge-reranker-base** for cross-encoder reranking, **LangGraph** for orchestrating the corrective RAG workflow, and **Gemini 2.5 Flash** for answer generation. A **Streamlit** interface is used for PDF uploading, question answering, source display, and execution tracing.
+Unlike a basic RAG pipeline that directly sends the first retrieved results to an LLM, InsightRAG combines:
 
----
+- **Semantic retrieval** using BGE embeddings + ChromaDB
+- **Lexical retrieval** using BM25
+- **CrossEncoder reranking** for improved retrieval precision
+- **Corrective RAG** to detect poor retrieval and rewrite the query
+- **LangGraph** for stateful workflow orchestration
+- **Gemini 2.5 Flash** for grounded answer generation
 
-## Features
-
-- PDF document ingestion and text extraction
-- Recursive text chunking with overlapping chunks
-- Semantic vector retrieval using BGE embeddings
-- Keyword-based retrieval using BM25
-- Hybrid retrieval combining vector and lexical search
-- CrossEncoder-based reranking
-- Corrective RAG workflow using LangGraph
-- Query rewriting when retrieved context is considered insufficient
-- Grounded answer generation using Gemini 2.5 Flash
-- Source information displayed with generated answers
-- Execution/reasoning trace for the RAG workflow
-- Persistent ChromaDB vector storage
-- Persistent BM25 corpus
-- Streamlit-based interactive interface
-- Baseline vs corrective RAG evaluation using Ragas
+The goal is to improve the quality and reliability of answers by **checking retrieval quality before generation**.
 
 ---
 
 ## Architecture
 
-InsightRAG has two main flows: **document indexing** and **question answering**.
-
-### High-Level Architecture
-
 ```text
                          ┌───────────────────┐
                          │    Streamlit UI   │
                          │                   │
-                         │ Upload PDF        │
-                         │ Ask Question      │
+                         │    Upload PDF     │
+                         │    Ask Question   │
                          └─────────┬─────────┘
                                    │
                                    ▼
@@ -68,41 +53,55 @@ InsightRAG has two main flows: **document indexing** and **question answering**.
           └──────┬───────┘                  │             │
                  │                          └──────┬──────┘
                  ▼                                 ▼
-       ┌───────────────────┐                Combine Results
-       │ ChromaDB          │                       │
-       │ + BM25 Index      │                       ▼
-       └───────────────────┘                ┌──────────────┐
-                                            │ CrossEncoder │
-                                            │  Reranker    │
-                                            └──────┬───────┘
-                                                   │
-                                                   ▼
-                                            ┌──────────────┐
-                                            │    Grade     │
-                                            └──────┬───────┘
-                                                   │
-                                           ┌───────┴───────┐
-                                           │               │
-                                         Good            Poor
-                                           │               │
-                                           ▼               ▼
-                                      Generate          Rewrite
+          ┌───────────────────┐              Combine Results
+          │     ChromaDB      │                      │
+          │   + BM25 Index    │                      ▼
+          └───────────────────┘              ┌──────────────┐
+                                             │ CrossEncoder │
+                                             │   Reranker   │
+                                             └──────┬───────┘
+                                                    │
+                                                    ▼
+                                             ┌──────────────┐
+                                             │     Grade    │
+                                             └──────┬───────┘
+                                                    │
+                                             ┌──────┴──────┐
+                                             │             │
+                                           Good          Poor
+                                             │             │
+                                             ▼             ▼
+                                         Generate       Rewrite
                                                            │
                                                            ▼
                                                    Hybrid Retrieval
                                                            │
                                                            ▼
-                                                       Generate
+                                                        Generate
                                                            │
                                                            ▼
                                                    Gemini 2.5 Flash
                                                            │
                                                            ▼
-                                                   Answer + Sources ```
-## Document Indexing Flow
+                                                   Answer + Sources
+```
 
-When a PDF is uploaded, InsightRAG prepares the document for efficient future retrieval.
+---
 
+## How It Works
+
+InsightRAG operates in two main phases:
+
+1. **Document Indexing**
+2. **Question Answering**
+
+---
+
+## 1. Document Indexing
+
+When a PDF is uploaded, the document is processed and converted into searchable representations.
+
+```text
 PDF
  │
  ▼
@@ -117,34 +116,36 @@ RecursiveCharacterTextSplitter
  ▼
 Text Chunks
  │
- ├───────────────┐
- ▼               ▼
-BGE Embeddings   BM25 Corpus
- │               │
- ▼               ▼
-ChromaDB         BM25 Index
+ ├───────────────────┐
+ ▼                   ▼
+BGE Embeddings      BM25 Corpus
+ │                   │
+ ▼                   ▼
+ChromaDB            BM25 Index
+```
 
-The document is indexed only during the ingestion phase. The resulting searchable structures are then reused when users ask questions.
+The document is indexed during the ingestion phase. The resulting vector and lexical indexes are then reused during question answering.
 
-Chunking
+### Chunking
 
-The project uses LangChain's RecursiveCharacterTextSplitter with:
+The project uses LangChain's `RecursiveCharacterTextSplitter`.
 
-Chunk size: 500
-Chunk overlap: 100
-Separators:
-\n\n
-\n
-.
-space
-empty string
+| Parameter | Value |
+|---|---:|
+| Chunk Size | 500 |
+| Chunk Overlap | 100 |
+
+The configured separators allow the splitter to preserve larger textual boundaries before falling back to smaller ones.
 
 The overlap helps preserve context between neighboring chunks.
 
-Query Processing Flow
+---
 
-When a user asks a question, the question enters the LangGraph workflow.
+# 2. Query Processing
 
+When a user asks a question, it enters the LangGraph workflow.
+
+```text
 Question
    │
    ▼
@@ -179,159 +180,199 @@ Hybrid Retrieval
              Generate
                 │
                 ▼
-             Answer
-Hybrid Retrieval
+              Answer
+```
 
-InsightRAG uses two complementary retrieval methods.
+---
 
-1. Vector Retrieval
+## Hybrid Retrieval
+
+InsightRAG uses two complementary retrieval strategies.
+
+### 1. Vector Retrieval
 
 The question is converted into an embedding using:
 
-BAAI/bge-small-en-v1.5
+**`BAAI/bge-small-en-v1.5`**
 
-The query embedding is compared against the document embeddings stored in ChromaDB.
+The query embedding is compared with document embeddings stored in ChromaDB.
 
-This helps retrieve chunks that are semantically similar to the question even when the exact words are different.
+This allows the system to retrieve chunks based on **semantic similarity**, even when the exact words in the query do not appear in the document.
 
-2. BM25 Retrieval
+### 2. BM25 Retrieval
 
 BM25 performs lexical/keyword-based retrieval over the indexed document chunks.
 
-This is useful when the question contains:
+It is particularly useful for queries containing:
 
-Exact terms
-Names
-Technical terminology
-Specific keywords
-Why Hybrid Retrieval?
+- Exact terms
+- Names
+- Technical terminology
+- Specific keywords
 
-Vector retrieval and BM25 have complementary strengths.
+### Why Use Both?
 
+The two retrieval approaches have complementary strengths:
+
+```text
 Vector Search
-→ understands semantic similarity
+     │
+     └── Semantic similarity
 
 BM25
-→ captures exact keyword matches
+     │
+     └── Exact keyword matching
+```
 
-Combining both gives the system a broader candidate set before reranking.
+Combining their results provides a broader candidate set before the reranking step.
 
-CrossEncoder Reranking
+---
+
+# CrossEncoder Reranking
 
 After vector and BM25 retrieval, the candidate chunks are combined and passed to:
 
-BAAI/bge-reranker-base
+**`BAAI/bge-reranker-base`**
 
 The CrossEncoder evaluates the relationship between:
 
+```text
 Question + Retrieved Chunk
+```
 
 and assigns a relevance score.
 
-The candidates are then sorted based on these scores and the top relevant chunks are selected for generation.
+The candidates are then sorted according to their relevance scores, and the highest-ranked chunks are selected for generation.
 
-The purpose of reranking is to improve the precision of the final context without applying the more expensive CrossEncoder to the entire document collection.
+The CrossEncoder is applied only to the retrieved candidate set rather than the entire document collection, reducing the computational cost of reranking.
 
-Corrective RAG
+---
 
-A key component of InsightRAG is its corrective retrieval workflow.
+# Corrective RAG
 
-Instead of immediately generating an answer after the first retrieval, the system checks whether the retrieved context is sufficient.
+A key feature of InsightRAG is its **corrective retrieval workflow**.
 
-```text Retrieve
-   ↓
-Grade
-   ↓
-Is the retrieved context sufficient?
-   │
-   ├── Yes → Generate
-   │
-   └── No
-        ↓
-      Rewrite
-        ↓
-  Hybrid Retrieval Again
-        ↓
-     Generate ```
+Instead of assuming that the first retrieval is sufficient, the system evaluates the retrieved context before generating an answer.
 
-The current implementation performs one bounded correction.
-
-It does not repeatedly loop through grading and rewriting indefinitely.
-
-LangGraph Workflow
-
-LangGraph is used as the workflow orchestrator.
-
-The graph contains the following main nodes:
-
+```text
 Retrieve
+   │
+   ▼
+ Grade
+   │
+   ├───────────────┐
+   │               │
+  Good            Poor
+   │               │
+   ▼               ▼
+Generate         Rewrite
+                   │
+                   ▼
+            Hybrid Retrieval
+                   │
+                   ▼
+                Generate
+```
 
-Calls the hybrid retriever to obtain relevant document chunks.
+If the retrieved context is considered insufficient:
 
-Grade
+1. The query is rewritten.
+2. Hybrid retrieval is performed again.
+3. The resulting context is passed to the generation stage.
 
-Checks whether the retrieved context is sufficient and determines whether correction is required.
+The current implementation performs **one bounded correction** rather than repeatedly looping through retrieval and rewriting.
 
-Rewrite
+---
 
-If the retrieval is considered poor, the question is rewritten and passed through retrieval again.
+# LangGraph Workflow
 
-Generate
+LangGraph is used to orchestrate the retrieval and generation pipeline.
 
-The selected document chunks and metadata are passed to the generator.
+The main workflow nodes are:
+
+### Retrieve
+
+Retrieves relevant document chunks using the hybrid retriever.
+
+### Grade
+
+Evaluates whether the retrieved context is sufficient for answering the question.
+
+### Rewrite
+
+If the retrieved context is considered poor, the original question is rewritten and sent through retrieval again.
+
+### Generate
+
+The selected document chunks and associated metadata are passed to the generation pipeline.
 
 The workflow can therefore follow either:
 
+```text
 Retrieve → Grade → Generate
+```
 
 or:
 
+```text
 Retrieve → Grade → Rewrite → Generate
+```
 
 The rewritten query is used for the second retrieval, while the original question is retained for final answer generation.
 
-Answer Generation
+---
+
+# Answer Generation
 
 The final retrieved chunks are inserted into a grounded prompt.
 
 The prompt instructs the model to:
 
-Answer only from the provided context
-Avoid unsupported information
-State when enough information cannot be found
-Include source document names
+- Answer only from the provided context
+- Avoid unsupported information
+- State when sufficient information cannot be found
+- Include source document names
 
-The generated response is produced using:
+The final response is generated using:
 
-Gemini 2.5 Flash
-Storage
+**Gemini 2.5 Flash**
+
+---
+
+# Storage
 
 InsightRAG maintains two searchable data structures.
 
-ChromaDB
+## ChromaDB
 
 ChromaDB is used for persistent vector storage.
 
 It stores:
 
-Document chunks
-Embedding vectors
-Source information
-Chunk IDs
+- Document chunks
+- Embedding vectors
+- Source information
+- Chunk IDs
 
-The vector database uses a persistent ChromaDB client.
+The project uses a persistent ChromaDB client.
 
-BM25
+## BM25
 
 The BM25 corpus is persisted at:
 
+```text
 data/bm25_corpus.pkl
+```
 
 It stores the indexed documents and their tokenized representations.
 
-Both indexes are created during document indexing and are later accessed by the HybridRetriever during question answering.
+Both indexes are created during document ingestion and are later accessed by the `HybridRetriever` during question answering.
 
-Project Structure
+---
+
+# Project Structure
+
+```text
 InsightRAG/
 │
 ├── modules/
@@ -356,200 +397,310 @@ InsightRAG/
 ├── requirements.txt
 ├── .env
 └── README.md
-Module Responsibilities
-Module	Responsibility
-loader.py	Extracts text from PDFs using PyMuPDF
-chunker.py	Splits extracted text into overlapping chunks
-embeddings.py	Generates BGE document/query embeddings
-vectordb.py	Stores and searches embeddings using ChromaDB
-retrieval.py	Implements vector, BM25, hybrid retrieval, and reranking
-generator.py	Builds the generation pipeline
-llm.py	Interfaces with Gemini 2.5 Flash
-prompts.py	Builds grounded prompts using retrieved context
-corrective_rag.py	Determines whether retrieval needs correction
-rag_nodes.py	Defines LangGraph node operations
-rag_graph.py	Defines and compiles the LangGraph workflow
-rag_state.py	Defines the state passed through the workflow
-rag_service.py	Connects indexing, retrieval, generation, and graph components
-app2.py	Streamlit user interface
-Technology Stack
-Component	Technology
-Language	Python
-UI	Streamlit
-PDF Processing	PyMuPDF
-Text Chunking	LangChain RecursiveCharacterTextSplitter
-Embeddings	BAAI/bge-small-en-v1.5
-Vector Database	ChromaDB
-Lexical Retrieval	BM25
-Reranking	BAAI/bge-reranker-base
-Workflow	LangGraph
-LLM	Gemini 2.5 Flash
-Evaluation	Ragas
-Evaluation
+```
+
+## Module Responsibilities
+
+| Module | Responsibility |
+|---|---|
+| `loader.py` | Extracts text from PDFs using PyMuPDF |
+| `chunker.py` | Splits extracted text into overlapping chunks |
+| `embeddings.py` | Generates BGE document/query embeddings |
+| `vectordb.py` | Stores and searches embeddings using ChromaDB |
+| `retrieval.py` | Implements vector, BM25, hybrid retrieval, and reranking |
+| `generator.py` | Builds the generation pipeline |
+| `llm.py` | Interfaces with Gemini 2.5 Flash |
+| `prompts.py` | Builds grounded prompts using retrieved context |
+| `corrective_rag.py` | Determines whether retrieval needs correction |
+| `rag_nodes.py` | Defines LangGraph node operations |
+| `rag_graph.py` | Defines and compiles the LangGraph workflow |
+| `rag_state.py` | Defines the state passed through the workflow |
+| `rag_service.py` | Connects indexing, retrieval, generation, and graph components |
+| `app2.py` | Streamlit user interface |
+
+---
+
+# Technology Stack
+
+| Component | Technology |
+|---|---|
+| Language | Python |
+| UI | Streamlit |
+| PDF Processing | PyMuPDF |
+| Text Chunking | LangChain `RecursiveCharacterTextSplitter` |
+| Embeddings | `BAAI/bge-small-en-v1.5` |
+| Vector Database | ChromaDB |
+| Lexical Retrieval | BM25 |
+| Reranking | `BAAI/bge-reranker-base` |
+| Workflow | LangGraph |
+| LLM | Gemini 2.5 Flash |
+| Evaluation | Ragas |
+
+---
+
+# Evaluation
 
 The system was evaluated by comparing a baseline RAG pipeline against the corrective RAG pipeline.
 
-Baseline
-Answer Correctness: 0.2647
-Faithfulness:       1.0000
-Corrective RAG
-Answer Correctness: 0.5137
-Faithfulness:       1.0000
+| Metric | Baseline RAG | Corrective RAG |
+|---|---:|---:|
+| Answer Correctness | 0.2647 | **0.5137** |
+| Faithfulness | 1.0000 | **1.0000** |
 
-The evaluation showed an improvement in answer correctness after introducing the corrective retrieval workflow.
+The evaluation showed an improvement in **answer correctness** after introducing the corrective retrieval workflow.
 
-The evaluation setup used generated expected answers and Ragas-based evaluation. Reference contexts were not available in the evaluation dataset, so context-based metrics were not used.
+The evaluation used generated expected answers and Ragas-based evaluation. Reference contexts were not available in the evaluation dataset, so context-based metrics were not used.
 
-Example
+---
+
+# Example
 
 A user can upload a research paper and ask:
 
-What is the sample size used in the regression analysis?
+> **What is the sample size used in the regression analysis?**
 
-The system:
+InsightRAG processes the question through the following pipeline:
 
-1. Searches the document using vector retrieval.
-2. Searches the same indexed content using BM25.
-3. Combines the candidates.
-4. Reranks them using the CrossEncoder.
-5. Grades the retrieved context.
-6. Rewrites the question if the context is insufficient.
-7. Retrieves again when correction is required.
-8. Passes the relevant context to Gemini.
-9. Displays the generated answer and sources in Streamlit.
-Installation
+```text
+User Question
+     │
+     ▼
+Vector Retrieval ──────┐
+                       │
+BM25 Retrieval ────────┤
+                       ▼
+                Combine Candidates
+                       │
+                       ▼
+                 CrossEncoder
+                   Reranking
+                       │
+                       ▼
+                     Grade
+                    /     \
+                 Good     Poor
+                  │         │
+                  │      Rewrite
+                  │         │
+                  │         ▼
+                  │   Hybrid Retrieval
+                  │         │
+                  └────┬────┘
+                       ▼
+                   Gemini 2.5
+                       │
+                       ▼
+                Answer + Sources
+```
 
-Clone the repository:
+---
 
+# Installation
+
+### 1. Clone the repository
+
+```bash
 git clone <your-repository-url>
 cd InsightRAG
+```
 
-Create a virtual environment:
+### 2. Create a virtual environment
 
+```bash
 python -m venv venv
+```
 
-Activate it on Windows:
+### 3. Activate the environment
 
+**Windows:**
+
+```bash
 venv\Scripts\activate
+```
 
-Install dependencies:
+### 4. Install dependencies
 
+```bash
 pip install -r requirements.txt
+```
 
-Create a .env file:
+### 5. Configure the API key
 
+Create a `.env` file:
+
+```env
 GEMINI_API_KEY=your_api_key
-Running the Application
+```
+
+---
+
+# Running the Application
 
 Start the Streamlit application:
 
+```bash
 streamlit run app2.py
+```
 
 Then:
 
-Upload a PDF.
-Index the document.
-Ask a question.
-InsightRAG retrieves relevant context.
-The corrective workflow evaluates the retrieval.
-Gemini generates the grounded answer.
-The UI displays the answer and sources.
-Design Decisions
-Why use embeddings?
+1. Upload a PDF.
+2. Index the document.
+3. Ask a question.
+4. InsightRAG performs hybrid retrieval.
+5. The retrieved context is reranked and graded.
+6. If necessary, the question is rewritten and retrieval is repeated.
+7. Gemini generates a grounded answer.
+8. The UI displays the answer and sources.
+
+---
+
+# Design Decisions
+
+## Why embeddings?
 
 Embeddings allow the system to retrieve semantically related information rather than relying only on exact keyword matches.
 
-Why use BM25 as well?
+## Why BM25?
 
-BM25 provides strong lexical retrieval and is useful for exact terms and technical keywords that semantic retrieval may miss.
+BM25 provides strong lexical retrieval and is particularly useful for exact terms, names, and technical keywords that semantic retrieval may miss.
 
-Why use a CrossEncoder?
+## Why a CrossEncoder?
 
-Initial retrieval needs to be relatively efficient and broad. The CrossEncoder is more computationally expensive, so it is applied only to the smaller candidate set to improve ranking precision.
+Initial retrieval needs to be relatively efficient and broad. Since CrossEncoder scoring is more computationally expensive, it is applied only to the smaller retrieved candidate set to improve ranking precision.
 
-Why use LangGraph?
+## Why LangGraph?
 
-The project contains conditional workflow logic. LangGraph makes the retrieval, grading, rewriting, and generation steps explicit and stateful instead of implementing the entire workflow through deeply nested conditional code.
+The project contains conditional workflow logic involving retrieval, grading, rewriting, and generation.
 
-Why corrective RAG?
+LangGraph makes these steps explicit and stateful instead of implementing the entire workflow through deeply nested conditional code.
 
-A normal RAG pipeline assumes the first retrieval is good enough. InsightRAG adds a correction step so that poor retrieval can trigger query rewriting and another retrieval attempt before generation.
+## Why Corrective RAG?
 
-Current Limitations
+A standard RAG pipeline assumes that the first retrieval is good enough.
 
-The current implementation is designed as a project/research prototype rather than a production-scale service.
+InsightRAG introduces a correction step:
 
-The corrective workflow currently performs only one correction.
-PDF page-level metadata is not preserved by the current loader.
-BM25 tokenization uses simple lowercase whitespace splitting.
-API retry, timeout, and fallback handling are not extensively implemented.
-The current application is designed around a Streamlit interface.
-Persistent indexes require explicit reset/management when changing document sets.
-The evaluation uses generated expected answers rather than a fully human-annotated benchmark.
-The current implementation does not provide production-grade multi-user isolation or distributed scaling.
-Future Improvements
+```text
+Retrieve
+   ↓
+Grade
+   ↓
+Rewrite if necessary
+   ↓
+Retrieve Again
+   ↓
+Generate
+```
+
+This provides an additional opportunity to improve retrieval before the LLM generates the final response.
+
+---
+
+# Current Limitations
+
+InsightRAG is currently a **project/research prototype rather than a production-scale service**.
+
+Current limitations include:
+
+- The corrective workflow performs only one correction.
+- PDF page-level metadata is not preserved by the current loader.
+- BM25 tokenization uses simple lowercase whitespace splitting.
+- API retry, timeout, and fallback handling are not extensively implemented.
+- The current application is designed around a Streamlit interface.
+- Persistent indexes require explicit reset/management when changing document sets.
+- Evaluation uses generated expected answers rather than a fully human-annotated benchmark.
+- The current implementation does not provide production-grade multi-user isolation or distributed scaling.
+
+---
+
+# Future Improvements
 
 Potential improvements include:
 
-Multi-step bounded corrective retrieval
-Page-level metadata and citations
-Better BM25 preprocessing
-More robust evaluation with human-verified reference answers
-Retrieval metrics such as Recall@K and MRR
-API retry and exponential backoff
-Rate limiting
-Structured logging and monitoring
-User/document-level access isolation
-Asynchronous document processing
-Scalable external vector storage
-Background processing for large PDF files
-Production API separation from the UI
-Key Concept
+- Multi-step bounded corrective retrieval
+- Page-level metadata and citations
+- Better BM25 preprocessing
+- Human-verified evaluation datasets
+- Retrieval metrics such as Recall@K and MRR
+- API retry and exponential backoff
+- Rate limiting
+- Structured logging and monitoring
+- User/document-level access isolation
+- Asynchronous document processing
+- Scalable external vector storage
+- Background processing for large PDF files
+- Separation of the production API from the UI
 
-The core idea behind InsightRAG is:
+---
 
-Don't immediately ask the LLM to answer.
+# Core Idea
 
-First:
-Retrieve → Combine → Rerank → Check
+The central idea behind InsightRAG is:
 
-If retrieval is poor:
-Rewrite → Retrieve Again
+> **Don't immediately ask the LLM to answer. First make sure the retrieved context is good enough.**
 
-Then:
-Generate a grounded answer.
+Instead of:
 
-This makes the system more robust than a basic:
+```text
+Question
+   ↓
+Vector Search
+   ↓
+LLM
+```
 
-Question → Vector Search → LLM
+InsightRAG uses:
 
-pipeline by introducing hybrid retrieval, reranking, and retrieval correction before answer generation.
+```text
+Question
+   ↓
+Hybrid Retrieval
+   ↓
+Combine
+   ↓
+Rerank
+   ↓
+Grade
+   │
+   ├── Good ──→ Generate
+   │
+   └── Poor ──→ Rewrite
+                    ↓
+               Retrieve Again
+                    ↓
+                 Generate
+```
 
-End-to-End Summary
+This combines **hybrid retrieval, reranking, and corrective retrieval** before answer generation.
 
-InsightRAG follows two distinct phases.
+---
 
-Indexing Phase
+# End-to-End Summary
+
+## Indexing Phase
+
+```text
 PDF
  ↓
 PyMuPDF
  ↓
-Text
+Text Extraction
  ↓
 Chunking
  ↓
-BGE Embeddings
- ↓
-ChromaDB
+ ┌───────────────┐
+ │               │
+ ▼               ▼
+BGE Embeddings  BM25
+ │               │
+ ▼               ▼
+ChromaDB        BM25 Corpus
+```
 
-and in parallel:
+## Query Phase
 
-Chunks
- ↓
-BM25
- ↓
-Persistent BM25 Corpus
-Query Phase
+```text
 Question
  ↓
 LangGraph
@@ -558,12 +709,11 @@ Hybrid Retrieval
  ├── ChromaDB Vector Search
  └── BM25 Search
  ↓
-Combine
+Combine Results
  ↓
 CrossEncoder Reranking
  ↓
 Grade
- ↓
  ├── Good → Generate
  │
  └── Poor → Rewrite
@@ -575,8 +725,10 @@ Grade
        Gemini 2.5 Flash
               ↓
        Answer + Sources
-Author
+```
 
-Susmita Haldar
+---
 
-Built as a project exploring Retrieval-Augmented Generation, hybrid information retrieval, reranking, corrective workflows, and LLM-based question answering over documents.
+## Author
+
+**Susmita Haldar**
